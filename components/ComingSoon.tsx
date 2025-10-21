@@ -26,8 +26,6 @@ const ComingSoon: React.FC<ComingSoonProps> = ({ featureName, featureDescription
         }
     };
     
-    const isApiKeyMissing = !process.env.API_KEY;
-
     return (
         <div>
             <PlatformHeader title={`${featureName} is Coming Soon!`} description={featureDescription} />
@@ -44,54 +42,44 @@ const ComingSoon: React.FC<ComingSoonProps> = ({ featureName, featureDescription
                     </p>
                 </div>
             </div>
-
             <div className="mt-6">
-                {isApiKeyMissing ? (
-                    <div className="bg-amber-50 p-4 rounded-lg border border-amber-200 mt-6 text-center">
-                        <h4 className="font-semibold text-amber-800">Gemini AI Summary Disabled</h4>
-                        <p className="text-sm text-amber-700 mt-1">Set the `API_KEY` environment variable to get an AI-powered sneak peek.</p>
+                {!summary && !isLoading && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 flex flex-col items-center text-center">
+                        <div className="bg-blue-100 p-3 rounded-full">
+                            <SparklesIcon className="w-8 h-8 text-blue-600" />
+                        </div>
+                        <p className="mt-4 text-slate-600">Want a sneak peek? Let AI summarize this upcoming feature from our Product Roadmap.</p>
+                        <button
+                            onClick={handleGenerateSummary}
+                            disabled={isLoading}
+                            className="mt-4 bg-blue-600 text-white font-semibold py-2 px-5 rounded-lg hover:bg-blue-700 transition-all shadow-sm disabled:bg-slate-400"
+                        >
+                            {isLoading ? 'Generating...' : `Tell Me About ${featureName}`}
+                        </button>
                     </div>
-                ) : (
-                    <>
-                        {!summary && !isLoading && (
-                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 flex flex-col items-center text-center">
-                                <div className="bg-blue-100 p-3 rounded-full">
-                                    <SparklesIcon className="w-8 h-8 text-blue-600" />
-                                </div>
-                                <p className="mt-4 text-slate-600">Want a sneak peek? Let AI summarize this upcoming feature from our Product Roadmap.</p>
-                                <button
-                                    onClick={handleGenerateSummary}
-                                    disabled={isLoading}
-                                    className="mt-4 bg-blue-600 text-white font-semibold py-2 px-5 rounded-lg hover:bg-blue-700 transition-all shadow-sm disabled:bg-slate-400"
-                                >
-                                    {isLoading ? 'Generating...' : `Tell Me About ${featureName}`}
-                                </button>
-                            </div>
-                        )}
-                        {isLoading && (
-                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm animate-pulse">
-                                <div className="h-6 bg-slate-200 rounded w-1/2 mx-auto mb-6"></div>
-                                <div className="h-4 bg-slate-200 rounded w-full mb-3"></div>
-                                <div className="h-4 bg-slate-200 rounded w-5/6 mb-4 mx-auto"></div>
-                                <div className="h-4 bg-slate-200 rounded w-1/3 mb-3"></div>
-                                <div className="h-4 bg-slate-200 rounded w-full mb-3"></div>
-                                <div className="h-4 bg-slate-200 rounded w-full"></div>
-                            </div>
-                        )}
-                        {error && <div className="text-red-500 bg-red-50 p-4 rounded-lg">{error}</div>}
-                        {summary && (
-                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                                <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                   <SparklesIcon className="w-6 h-6 text-blue-500" />
-                                   AI-Generated Feature Preview
-                                </h3>
-                               <div
-                                    className="prose prose-sm max-w-none"
-                                    dangerouslySetInnerHTML={{ __html: summary }}
-                                />
-                            </div>
-                        )}
-                    </>
+                )}
+                {isLoading && (
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm animate-pulse">
+                        <div className="h-6 bg-slate-200 rounded w-1/2 mx-auto mb-6"></div>
+                        <div className="h-4 bg-slate-200 rounded w-full mb-3"></div>
+                        <div className="h-4 bg-slate-200 rounded w-5/6 mb-4 mx-auto"></div>
+                        <div className="h-4 bg-slate-200 rounded w-1/3 mb-3"></div>
+                        <div className="h-4 bg-slate-200 rounded w-full mb-3"></div>
+                        <div className="h-4 bg-slate-200 rounded w-full"></div>
+                    </div>
+                )}
+                {error && <div className="text-red-500 bg-red-50 p-4 rounded-lg">{error}</div>}
+                {summary && (
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                           <SparklesIcon className="w-6 h-6 text-blue-500" />
+                           AI-Generated Feature Preview
+                        </h3>
+                       <div
+                            className="prose prose-sm max-w-none"
+                            dangerouslySetInnerHTML={{ __html: summary }}
+                        />
+                    </div>
                 )}
             </div>
         </div>

@@ -1,9 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useContext } from 'react';
 import { usePortfolio } from '../hooks/usePortfolio';
 import PlatformHeader from './PlatformHeader';
 import { RiskRegisterItem, TrustPassport } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { DocumentTextIcon, DownloadIcon, ShieldCheckIcon, ExclamationCircleIcon, CheckCircleIcon } from './Icon';
+import { exportBoardSummaryPdf } from '../services/deliverableService';
+import { AuditLogContext } from '../context/AuditLogContext';
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode }> = ({ title, value, icon }) => (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
@@ -19,6 +21,8 @@ const StatCard: React.FC<{ title: string; value: string | number; icon: React.Re
 
 const Reports: React.FC = () => {
     const { passports, loading, error } = usePortfolio();
+    const { logAction } = useContext(AuditLogContext);
+    const [exporting, setExporting] = useState(false);
 
     const reportData = useMemo(() => {
         if (!passports) return null;
@@ -46,9 +50,20 @@ const Reports: React.FC = () => {
         };
     }, [passports]);
 
-    const handleExport = () => {
-        alert("Exporting a board-ready PDF summary... (This is a demo)");
-    }
+    const handleExport = async () => {
+        if (!passports || exporting) return;
+        try {
+            setExporting(true);
+            await exportBoardSummaryPdf(passports);
+            logAction('Board Summary Exported', `Models included: ${passports.length}`);
+        } catch (err) {
+            console.error(err);
+            logAction('Board Summary Export Failed', 'Unable to generate board-ready packet.');
+            alert('Unable to export the summary at this time.');
+        } finally {
+            setExporting(false);
+        }
+    };
 
     if (loading) {
         return <div>Loading report data...</div>;
@@ -82,10 +97,11 @@ const Reports: React.FC = () => {
                 <PlatformHeader title="Board-Ready Reporting" description="An executive overview of your AI portfolio's compliance and risk posture." />
                 <button
                     onClick={handleExport}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-sm transition-all flex items-center gap-2"
+                    disabled={exporting}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-2 px-4 rounded-lg shadow-sm transition-all flex items-center gap-2 disabled:cursor-not-allowed"
                 >
                    <DownloadIcon className="h-5 w-5" />
-                   Export Summary (PDF)
+                   {exporting ? 'Generating…' : 'Export Summary (PDF)'}
                 </button>
             </div>
 

@@ -1,83 +1,130 @@
-import { GoogleGenAI } from "@google/genai";
-import { TrustPassport } from "../types";
+import { TrustPassport } from '../types';
 import { PRD_TEXT } from './prd';
 
+const stripMarkdown = (value: string) =>
+  value
+    .replace(/\*\*/g, '')
+    .replace(/`/g, '')
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
-const API_KEY = process.env.API_KEY;
-
-if (!API_KEY) {
-  console.warn("API_KEY environment variable not set. Gemini features will be disabled.");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY! });
-
-export const generatePassportSummary = async (passportData: TrustPassport): Promise<string> => {
-    if (!API_KEY) {
-        return "Gemini API key is not configured. Cannot generate summary.";
-    }
-
-    const model = 'gemini-2.5-flash';
-    const systemInstruction = `You are an expert AI governance and healthcare compliance analyst. Your task is to generate a concise, professional executive summary of the provided AI Trust Passport JSON data. The summary should be suitable for a CISO or procurement officer.
-
-- Start with a brief overview of the AI model and its purpose.
-- Highlight the key verification results, focusing on strengths and calling out metrics that are particularly good (e.g., high reliability, high prompt injection resilience).
-- Mention the compliance frameworks covered.
-- Summarize the key risks from the risk register, along with their stated mitigations.
-- Conclude with an overall statement about the model's readiness based on the passport data.
-- Format the output in clean, readable HTML. Use headings (like <h3> for sections) and bullet points (<ul> with <li> items). Do not include <html> or <body> tags.`;
-    
-    const contents = `AI Trust Passport Data:
-      ${JSON.stringify(passportData, null, 2)}
-    `;
-
-    try {
-        const response = await ai.models.generateContent({
-            model: model,
-            contents: contents,
-            config: {
-                systemInstruction: systemInstruction,
-            },
-        });
-        return response.text;
-    } catch (error) {
-        console.error("Error generating summary with Gemini:", error);
-        return "An error occurred while generating the AI summary. Please check the console for details.";
-    }
+const toSentence = (value: string) => {
+  const cleaned = stripMarkdown(value);
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 };
 
+const formatMetrics = (passport: TrustPassport): string[] => {
+  const metrics = passport.verification?.runs?.[0]?.metrics;
+  if (!metrics) return [];
+
+  return [
+    `PHI leakage rate: ${metrics.phi_leakage_rate}%`,
+    `Hallucination rate: ${metrics.hallucination_rate}%`,
+    `Bias parity gap: ${metrics.bias_parity_gap}`,
+    `Prompt injection resilience: ${metrics.prompt_injection_resilience}`,
+    `Reliability score: ${metrics.reliability_score}`,
+  ];
+};
+
+const formatCoverage = (passport: TrustPassport): string[] => {
+  if (!passport.coverage_matrix?.length) return [];
+  return passport.coverage_matrix.slice(0, 4).map(control => {
+    const base = `${control.control} — ${control.status.toUpperCase()}`;
+    return control.gap ? `${base}. ${control.gap}` : base;
+  });
+};
+
+const formatRisks = (passport: TrustPassport): string[] => {
+  if (!passport.risk_register?.length) return [];
+  return passport.risk_register.map(risk =>
+    `${risk.title} (${risk.severity.toUpperCase()}): ${risk.mitigation}`,
+  );
+};
+
+const buildList = (items: string[]) => {
+  if (!items.length) return '';
+  const listItems = items.map(item => `<li>${toSentence(item)}</li>`).join('');
+  return `<ul>${listItems}</ul>`;
+};
+
+export const generatePassportSummary = async (passport: TrustPassport): Promise<string> => {
+  const { subject, verification, overallCompliance } = passport;
+  const frameworks = verification?.frameworks?.join(', ') || 'No mapped frameworks yet';
+  const overview = `Spectral verified ${subject.product} for ${subject.org} to support ${subject.use_case}.`;
+  const complianceLine = `Current compliance score: ${overallCompliance ?? 'N/A'}%.`;
+
+  const metricsSection = formatMetrics(passport);
+  const coverageSection = formatCoverage(passport);
+  const riskSection = formatRisks(passport);
+
+  return [
+    '<h3>Overview</h3>',
+    `<p>${toSentence(overview)} ${toSentence(complianceLine)} This passport references ${frameworks}.</p>`,
+    metricsSection.length
+      ? '<h3>Verification Metrics</h3>' + buildList(metricsSection)
+      : '',
+    coverageSection.length
+      ? '<h3>Control Coverage Highlights</h3>' + buildList(coverageSection)
+      : '',
+    riskSection.length
+      ? '<h3>Key Risks & Mitigations</h3>' + buildList(riskSection)
+      : '',
+  ]
+    .filter(Boolean)
+    .join('');
+};
+
+const featureLines = PRD_TEXT.split('\n');
+
+const findFeatureSection = (featureName: string) => {
+  const lower = featureName.toLowerCase();
+  const headingIndex = featureLines.findIndex(line => line.toLowerCase().includes(lower));
+  if (headingIndex === -1) return null;
+
+  const lines: string[] = [];
+  for (let i = headingIndex + 1; i < featureLines.length; i++) {
+    const line = featureLines[i];
+    if (!line.trim() && lines.length) break;
+    if (/^#+\s/.test(line) && lines.length) break;
+    if (/^#+\s/.test(line) && !lines.length) continue;
+    lines.push(line);
+  }
+
+  return lines;
+};
+
+const splitSectionContent = (section: string[]) => {
+  const bullets: string[] = [];
+  const paragraphs: string[] = [];
+
+  section.forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    if (/^[-*]/.test(trimmed)) {
+      bullets.push(trimmed.replace(/^[-*]\s*/, ''));
+    } else if (/^\*\s{2,}/.test(line)) {
+      bullets.push(trimmed.replace(/^\*\s*/, ''));
+    } else {
+      paragraphs.push(trimmed);
+    }
+  });
+
+  return { bullets, paragraphs };
+};
 
 export const generateFeatureSummary = async (featureName: string): Promise<string> => {
-    if (!API_KEY) {
-        return "Gemini API key is not configured. Cannot generate feature summary.";
-    }
+  const section = findFeatureSection(featureName);
+  if (!section) {
+    return `<h3>${featureName}</h3><p>We are still drafting the detailed requirements for ${featureName}. Expect updates as the Spectral team progresses on this capability.</p>`;
+  }
 
-    const model = 'gemini-2.5-flash';
-    const systemInstruction = `You are a product marketing expert. Based on the provided Product Requirements Document (PRD), find the section that describes the feature named "${featureName}".
+  const { bullets, paragraphs } = splitSectionContent(section);
+  const intro = paragraphs.length
+    ? `<p>${paragraphs.map(toSentence).join(' ')}</p>`
+    : `<p>${featureName} is planned as part of the Spectral roadmap. Stay tuned for more details.</p>`;
 
-Your task is to generate a concise, exciting, user-facing summary for a "Coming Soon" page.
+  const bulletList = bullets.length ? buildList(bullets) : '';
 
-- Explain what the feature is and the primary problem it solves.
-- Describe 2-3 key benefits for the user.
-- Maintain an optimistic and professional tone.
-- Format the output as clean, readable HTML. Use a heading (<h3>), paragraphs (<p>), and a bulleted list (<ul> with <li> items) for the benefits. Do not include <html> or <body> tags.`;
-
-    const contents = `PRODUCT REQUIREMENTS DOCUMENT (PRD):
----
-${PRD_TEXT}
----
-`;
-
-    try {
-        const response = await ai.models.generateContent({
-            model: model,
-            contents: contents,
-            config: {
-                systemInstruction: systemInstruction,
-            },
-        });
-        return response.text;
-    } catch (error) {
-        console.error(`Error generating feature summary for ${featureName}:`, error);
-        return `An error occurred while generating the AI summary for ${featureName}. Please check the console for details.`;
-    }
+  return `<h3>${featureName}</h3>${intro}${bulletList}`;
 };
