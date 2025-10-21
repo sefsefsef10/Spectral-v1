@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { TrustPassport } from '../types';
 import { generatePassportSummary } from '../services/geminiService';
 import { SparklesIcon } from './Icon';
@@ -7,21 +7,21 @@ interface SummaryProps {
     passport: TrustPassport;
 }
 
-const InfoCard: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+const InfoCard = ({ title, children }: { title: string; children: ReactNode }) => (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">{title}</h3>
         <div className="space-y-3">{children}</div>
     </div>
 );
 
-const InfoItem: React.FC<{ label: string; value: string | React.ReactNode }> = ({ label, value }) => (
+const InfoItem = ({ label, value }: { label: string; value: string | ReactNode }) => (
     <div className="flex justify-between items-start text-sm">
         <p className="text-slate-500">{label}</p>
         <p className="text-slate-700 font-medium text-right">{value}</p>
     </div>
 );
 
-const AiSummary: React.FC<{ passport: TrustPassport }> = ({ passport }) => {
+const AiSummary = ({ passport }: { passport: TrustPassport }) => {
     const [summary, setSummary] = useState<string>('');
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
@@ -39,16 +39,6 @@ const AiSummary: React.FC<{ passport: TrustPassport }> = ({ passport }) => {
         }
     };
     
-    // Check if API_KEY is missing
-    if (!process.env.API_KEY) {
-        return (
-             <div className="bg-amber-50 p-4 rounded-lg border border-amber-200 mt-6">
-                <h4 className="font-semibold text-amber-800">Gemini AI Summary Disabled</h4>
-                <p className="text-sm text-amber-700 mt-1">Please set the `API_KEY` environment variable to enable this feature.</p>
-            </div>
-        )
-    }
-
     return (
         <div className="mt-6">
             <h3 className="text-lg font-semibold text-slate-800 mb-4">AI-Generated Executive Summary</h3>
@@ -87,7 +77,7 @@ const AiSummary: React.FC<{ passport: TrustPassport }> = ({ passport }) => {
 };
 
 
-const Summary: React.FC<SummaryProps> = ({ passport }) => {
+const Summary = ({ passport }: SummaryProps) => {
     const { subject, vendor_attestation, issued_at, expiration } = passport;
 
     return (
