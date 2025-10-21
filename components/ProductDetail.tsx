@@ -10,6 +10,7 @@ import ShareModal from './ShareModal';
 import VerificationModal from './VerificationModal';
 import { AuditLogContext } from '../context/AuditLogContext';
 import { ShieldCheckIcon, DownloadIcon, CodeIcon, BeakerIcon, ShareIcon, SignalIcon } from './Icon';
+import { downloadPassportPacket } from '../services/deliverableService';
 
 interface ProductDetailProps {
   product: TrustPassport;
@@ -24,14 +25,16 @@ const statusStyles = {
   draft: { bg: 'bg-slate-100', text: 'text-slate-800', border: 'border-slate-200', icon: <ShieldCheckIcon className="h-5 w-5 text-slate-600" />, label: 'Draft' },
 };
 
-const ProductHeader: React.FC<{ product: TrustPassport; onBack: () => void; onShare: () => void; onUpdate: (updates: Partial<TrustPassport>) => void; }> = ({ product, onBack, onShare, onUpdate }) => {
+const ProductHeader: React.FC<{
+  product: TrustPassport;
+  onBack: () => void;
+  onShare: () => void;
+  onUpdate: (updates: Partial<TrustPassport>) => void;
+  onDownload: (format: 'json' | 'pdf') => void;
+  downloadingFormat: 'json' | 'pdf' | null;
+}> = ({ product, onBack, onShare, onUpdate, onDownload, downloadingFormat }) => {
   const { logAction } = useContext(AuditLogContext);
   const currentStatus = statusStyles[product.status];
-  
-  const handleDownload = (type: 'json' | 'pdf') => {
-    logAction(`Downloaded ${type.toUpperCase()} Packet`, `Product: ${product.subject.product}`);
-    alert(`Downloading ${type.toUpperCase()} for ${product.subject.product}... (This is a demo)`);
-  };
 
   const toggleSentinel = () => {
     const newStatus = product.monitoringStatus === 'active' ? 'inactive' : 'active';
@@ -79,8 +82,21 @@ const ProductHeader: React.FC<{ product: TrustPassport; onBack: () => void; onSh
           <button onClick={onShare} disabled={product.status === 'draft'} className="flex items-center gap-2 bg-white hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 border border-slate-300 rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
             <ShareIcon className="w-5 h-5" /> Share
           </button>
-          <button onClick={() => handleDownload('pdf')} disabled={product.status === 'draft'} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-3 rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-            <DownloadIcon className="w-5 h-5" /> PDF Packet
+          <button
+            onClick={() => onDownload('json')}
+            disabled={product.status === 'draft' || downloadingFormat !== null}
+            className="flex items-center gap-2 bg-white hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 border border-slate-300 rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <CodeIcon className="w-5 h-5" />
+            {downloadingFormat === 'json' ? 'Generating…' : 'JSON Packet'}
+          </button>
+          <button
+            onClick={() => onDownload('pdf')}
+            disabled={product.status === 'draft' || downloadingFormat !== null}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-3 rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <DownloadIcon className="w-5 h-5" />
+            {downloadingFormat === 'pdf' ? 'Generating…' : 'PDF Packet'}
           </button>
         </div>
       </div>
@@ -113,12 +129,27 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ product, onBack, onUpdate
   const [activeView, setActiveView] = useState<View>('summary');
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
+  const [downloadingFormat, setDownloadingFormat] = useState<'json' | 'pdf' | null>(null);
   const { logAction } = useContext(AuditLogContext);
 
   const handleVerificationComplete = () => {
     onUpdate(product.id, { status: 'verified' });
     setIsVerificationModalOpen(false);
     logAction('Verification Complete', `Product: ${product.subject.product}`);
+  };
+
+  const handleDownload = async (format: 'json' | 'pdf') => {
+    try {
+      setDownloadingFormat(format);
+      await downloadPassportPacket(product, format);
+      logAction(`Downloaded ${format.toUpperCase()} Packet`, `Product: ${product.subject.product}`);
+    } catch (error) {
+      console.error(error);
+      logAction('Packet Download Failed', `Product: ${product.subject.product}`);
+      alert('We were unable to generate the requested packet. Please try again.');
+    } finally {
+      setDownloadingFormat(null);
+    }
   };
 
   const hasVerificationData = product.status !== 'draft';
@@ -146,7 +177,17 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ product, onBack, onUpdate
 
   return (
     <div>
-        <ProductHeader product={product} onBack={onBack} onShare={() => setIsShareModalOpen(true)} onUpdate={(updates) => onUpdate(product.id, updates)} />
+        <ProductHeader
+          product={product}
+          onBack={onBack}
+          onShare={() => {
+            setIsShareModalOpen(true);
+            logAction('Share Modal Opened', `Product: ${product.subject.product}`);
+          }}
+          onUpdate={(updates) => onUpdate(product.id, updates)}
+          onDownload={handleDownload}
+          downloadingFormat={downloadingFormat}
+        />
         {hasVerificationData && (
             <div className="border-b border-slate-200 mt-6">
                 <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
