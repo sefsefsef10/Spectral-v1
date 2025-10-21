@@ -1,0 +1,5 @@
+{
+  "name": "Spectral - AI Trust Passport",
+  "description": "A web application to view and analyze AI Trust Passports for healthcare. It provides detailed verification metrics, compliance coverage, and risk assessments for AI models, ensuring safety and transparency for healthcare systems.",
+  "requestFramePermissions": []
+}
